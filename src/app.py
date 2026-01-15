@@ -1,9 +1,10 @@
-import fastapi
 from fastapi import FastAPI, HTTPException,Query
 from pydantic import BaseModel
-import data
+from src.data import data
+from src.schema import Phone_schema
+from datetime import datetime
 
-data_values=data.data
+data_values=data
 app = FastAPI()
 
 @app.get("/")
@@ -52,7 +53,7 @@ def phones_sort(
 
 ):
     
-    if sum(rate,discount,price)>1:
+    if sum([rate,discount,price])>1:
         raise HTTPException(status_code=400,detail="choose only one sorting parameter")
     if rate :
         phones=sorted(data_values,key=lambda x: x["rating"] ,reverse=True)
@@ -60,11 +61,42 @@ def phones_sort(
         phones=sorted(data_values,key=lambda x:x["discount_percent"],reverse=True)
     if price:
         phones=sorted(data_values,key=lambda x:x["sale_cost"])
+
+    if not(rate,discount,price):
+        raise HTTPException(status_code=400 , detail="Choose rate, discount or price ")
     return {
         "count":len(phones),
         "phones":phones
     }
 
-    
+@app.post("/phones/admin/add")
+def add_phone(phone:Phone_schema):
+    new_phone=phone.dict()
+    new_phone["id"]=max(p["id"] for p in data_values)+1
+    new_phone["created_at"]=datetime.now().strftime("%Y-%m-%d %H:%M")
+    new_phone["last_updated"]=new_phone["created_at"]
+    data_values.append(new_phone)
+
+    return {
+        "message":"phone added successfully",
+        "phone":new_phone
+    }
+
+@app.put("/phone/admin/update")
+def update_phone(id:int,product:Phone_schema):
+    for i in range(len(data_values)):
+        if data_values[i]["id"]==id:
+            data_values[i].update(product.dict())
+            data_values[i]["last_updated"]=datetime.now().strftime("%y-%m-%d %H:%M")
+            return{"message":f"{id} is updated"}
+    raise HTTPException(status_code=404,detail="not found")
+
+@app.delete("/phone/admin/delete")
+def del_phone (id:int):
+    for i,j in enumerate(data_values):
+        if j["id"]==id:
+            deleted=data_values.pop(i)
+            return{"message":f"{id} is deleted","deleted":deleted}
+    raise HTTPException(status_code=404,detail="not found")
 
 
