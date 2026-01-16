@@ -57,12 +57,12 @@ def phones_sort(
         raise HTTPException(status_code=400,detail="choose only one sorting parameter")
     if rate :
         phones=sorted(data_values,key=lambda x: x["rating"] ,reverse=True)
-    if discount:
+    elif discount:
         phones=sorted(data_values,key=lambda x:x["discount_percent"],reverse=True)
-    if price:
+    elif price:
         phones=sorted(data_values,key=lambda x:x["sale_cost"])
 
-    if not(rate,discount,price):
+    if not any ([rate,discount,price]):
         raise HTTPException(status_code=400 , detail="Choose rate, discount or price ")
     return {
         "count":len(phones),
@@ -71,6 +71,12 @@ def phones_sort(
 
 @app.post("/phones/admin/add")
 def add_phone(phone:Phone_schema):
+    for p in data_values:
+        if p["model"].lower() == phone.model.lower() and p["year_of_manufacture"] == phone.year_of_manufacture:
+            raise HTTPException(
+            status_code=400,
+            detail="Phone model already exists"
+        )
     new_phone=phone.dict()
     new_phone["id"]=max(p["id"] for p in data_values)+1
     new_phone["created_at"]=datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -87,7 +93,7 @@ def update_phone(id:int,product:Phone_schema):
     for i in range(len(data_values)):
         if data_values[i]["id"]==id:
             data_values[i].update(product.dict())
-            data_values[i]["last_updated"]=datetime.now().strftime("%y-%m-%d %H:%M")
+            data_values[i]["last_updated"]=datetime.now().strftime("%Y  -%m-%d %H:%M")
             return{"message":f"{id} is updated"}
     raise HTTPException(status_code=404,detail="not found")
 
@@ -95,8 +101,9 @@ def update_phone(id:int,product:Phone_schema):
 def del_phone (id:int):
     for i,j in enumerate(data_values):
         if j["id"]==id:
+            if j["stock_count"]!=0:
+                raise HTTPException(status_code=400,detail="cannot delete phone with stock count greater than 0")   
             deleted=data_values.pop(i)
             return{"message":f"{id} is deleted","deleted":deleted}
     raise HTTPException(status_code=404,detail="not found")
-
 
