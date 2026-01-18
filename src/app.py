@@ -1,18 +1,18 @@
 from fastapi import FastAPI, HTTPException,Query
 from pydantic import BaseModel
-from src.data import data
-from src.schema import Phone_schema
+import src.services as services
+from src.schema import PhoneBase, PhoneResponse,PhoneCreate,PhoneUpdate
 from datetime import datetime
 
-data_values=data
+
 app = FastAPI()
 
 @app.get("/")
 def read_root():
     return {"Hello ! welcome": "countinue shopping !"}
 #filters
-@app.get("/phones/")
-def filter_phone(
+@app.get("/phones/",response_model=list[PhoneResponse])
+def phones_filter(
     min_price:int=Query(0),
     max_price:int=Query(10**6),
     brand:str=None,
@@ -21,89 +21,50 @@ def filter_phone(
     year:int=None,
     in_stock:bool=None
 ):
-    result=[]
+    phones=services.filter_phone(
+        min_price=min_price,
+        max_price=max_price,
+        brand=brand,
+        model=model,
+        type=type,
+        year=year,
+        in_stock=in_stock
+    )
+    if not phones:
+        raise HTTPException(status_code=404,detail="not found")
+    return phones
 
-    for p in data_values:
-        if not (min_price <= p["sale_cost"] <= max_price):
-            continue
-        if brand and p["brand"].lower() != brand.lower():
-            continue
-        if model and p["model"].lower() != model.lower():
-            continue
-        if type and p["type_of_piece"].lower() != type.lower():
-            continue
-        if year and p["year_of_manufacture"] != year:
-            continue
-        if in_stock is not None and p["in_stock"] != in_stock:
-            continue
-
-        result.append(p)
-    if result : 
-        return {
-            "count" : len(result),
-            "phones":result
-        }
-    else: raise HTTPException(status_code=404,detail="not found")
 #sorting 
 @app.get("/phone/sort")
-def phones_sort(
-    rate:bool =False,
-    discount:bool=False,
-    price:bool=False
+def sort(sort_by:str):
+    sorted_phones= services.phones_sort(sort_by)
+    if not sorted_phones:
+        raise HTTPException(status_code=404,detail="not found or invalid sort parameter")
+    return sorted_phones
 
-):
-    
-    if sum([rate,discount,price])>1:
-        raise HTTPException(status_code=400,detail="choose only one sorting parameter")
-    if rate :
-        phones=sorted(data_values,key=lambda x: x["rating"] ,reverse=True)
-    elif discount:
-        phones=sorted(data_values,key=lambda x:x["discount_percent"],reverse=True)
-    elif price:
-        phones=sorted(data_values,key=lambda x:x["sale_cost"])
+#admin operations
+@app.post("/phones/admin/add",response_model=PhoneResponse)
+def add_phone(phone:PhoneCreate):
+    new_phone= services.add_phone(phone.dict())
+    if not new_phone:
+        raise HTTPException(status_code=400,detail="phone already exists")
+    return new_phone
 
-    if not any ([rate,discount,price]):
-        raise HTTPException(status_code=400 , detail="Choose rate, discount or price ")
-    return {
-        "count":len(phones),
-        "phones":phones
-    }
+@app.put("/phone/admin/update",response_model=PhoneResponse)
+def update_phone(id:int,product:PhoneUpdate):
+    updated_phone= services.update_phone(id,product.dict())
+    if not updated_phone:
+        raise HTTPException(status_code=404,detail="not found")
+    return updated_phone
 
-@app.post("/phones/admin/add")
-def add_phone(phone:Phone_schema):
-    for p in data_values:
-        if p["model"].lower() == phone.model.lower() and p["year_of_manufacture"] == phone.year_of_manufacture:
-            raise HTTPException(
-            status_code=400,
-            detail="Phone model already exists"
-        )
-    new_phone=phone.dict()
-    new_phone["id"]=max(p["id"] for p in data_values)+1
-    new_phone["created_at"]=datetime.now().strftime("%Y-%m-%d %H:%M")
-    new_phone["last_updated"]=new_phone["created_at"]
-    data_values.append(new_phone)
+@app.delete("/phone/admin/delete", response_model=PhoneResponse)
+def del_phone(id: int):
+    deleted = services.del_phone(id)
+    if not deleted:
+        raise HTTPException(status_code=400, detail="cannot delete phone with stock count greater than 0 or not found")
+    return deleted
 
-    return {
-        "message":"phone added successfully",
-        "phone":new_phone
-    }
 
-@app.put("/phone/admin/update")
-def update_phone(id:int,product:Phone_schema):
-    for i in range(len(data_values)):
-        if data_values[i]["id"]==id:
-            data_values[i].update(product.dict())
-            data_values[i]["last_updated"]=datetime.now().strftime("%Y  -%m-%d %H:%M")
-            return{"message":f"{id} is updated"}
-    raise HTTPException(status_code=404,detail="not found")
 
-@app.delete("/phone/admin/delete")
-def del_phone (id:int):
-    for i,j in enumerate(data_values):
-        if j["id"]==id:
-            if j["stock_count"]!=0:
-                raise HTTPException(status_code=400,detail="cannot delete phone with stock count greater than 0")   
-            deleted=data_values.pop(i)
-            return{"message":f"{id} is deleted","deleted":deleted}
-    raise HTTPException(status_code=404,detail="not found")
 
+print("APP LOADED AS:", __name__)

@@ -1,16 +1,56 @@
 from pydantic import BaseModel
+from datetime import datetime
 
-class Phone_schema(BaseModel):
-    id: int
+
+# =========================
+# Base schema (shared fields)
+# =========================
+class PhoneBase(BaseModel):
     brand: str
     model: str
-    type_of_piece: str
     year_of_manufacture: int
-    sale_cost: float
-    rating: float
-    discount_percent: float
+    cost: int
+    sale_cost: int
+    discount_percent: int
+    type_of_piece: str
     in_stock: bool
-    warranty_years: int
-    created_at: str
-    last_updated: str
+    stock_count: int
+    rating: float
+    warranty_months: int
 
+
+# =========================
+# Create schema (POST)
+# =========================
+class PhoneCreate(PhoneBase):
+    """
+    Used when client creates a phone.
+    Client DOES NOT send:
+    - id
+    - created_at
+    - last_updated
+    """
+    pass
+
+
+# =========================
+# Update schema (PUT / PATCH)
+# =========================
+class PhoneUpdate(PhoneBase):
+    """
+    Used for updates.
+    (Later you can make fields optional for PATCH)
+    """
+    pass
+
+
+# =========================
+# Response schema (DB → client)
+# =========================
+class PhoneResponse(PhoneBase):
+    id: int
+    created_at: datetime
+    last_updated: datetime
+
+    class Config:
+        from_attributes = True  # REQUIRED for SQLAlchemy
