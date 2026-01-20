@@ -1,4 +1,4 @@
 FastAPI
 uvicorn[standard]
 pydantic
-sqlalchemy
+sqlalchemy psycopg2
